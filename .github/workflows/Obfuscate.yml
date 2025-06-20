@@ -5,7 +5,6 @@ on:
     branches:
       - main
   schedule:
-    # 每天凌晨1:00运行
     - cron: "0 1 * * *"
 
 permissions:
@@ -22,17 +21,29 @@ jobs:
       - name: 设置 Node.js 环境
         uses: actions/setup-node@v4
         with:
-          node-version: "latest"
+          node-version: "20"
+
+      - name: 缓存 npm 依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
 
       - name: 安装依赖项
         run: |
           npm install -g javascript-obfuscator
 
-      - name: 下载 BPB worker.js
+      - name: 下载并验证 BPB worker.js
         run: |
           wget -O origin.js https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/main/build/unobfuscated-worker.js
+          echo "<EXPECTED_SHA256>  origin.js" | sha256sum -c -
+        env:
+          EXPECTED_SHA256: "<替换为实际文件的 SHA256 校验和>"
 
       - name: 混淆 BPB worker.js
+        continue-on-error: true
         run: |
           javascript-obfuscator origin.js --output _worker.js \
             --compact true \
@@ -41,15 +52,27 @@ jobs:
             --identifier-names-generator mangled \
             --rename-globals false \
             --string-array true \
-            --string-array-encoding 'rc4' \
-            --string-array-threshold 0.75 \
+            --string-array-encoding 'base64' \
+            --string-array-threshold 0.5 \
             --transform-object-keys true \
-            --unicode-escape-sequence true
+            --self-defending true
+          if [ ! -f _worker.js ]; then
+            echo "Error: Obfuscation failed" >&2
+            exit 1
+          fi
 
       - name: 提交更改
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           branch: main
-          commit_message: ':arrow_up: 更新最新的 BPB 面板'
+          commit_message: ':arrow_up: 更新 BPB 面板 - ${{ github.run_id }} - ${{ github.event.schedule || 'Manual' }}'
           commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
           push_options: '--set-upstream'
+          skip_dirty_check: false
+
+      - name: 通知构建状态
+        if: always()
+        uses: ravsamhq/notify-slack-action@v2
+        with:
+          status: ${{ job.status }}
+          token: ${{ secrets.SLACK_WEBHOOK_URL }}
