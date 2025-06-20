@@ -38,9 +38,9 @@ jobs:
       - name: 下载并验证 BPB worker.js
         run: |
           wget -O origin.js https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/main/build/unobfuscated-worker.js
-          echo "<EXPECTED_SHA256>  origin.js" | sha256sum -c -
+          echo "ACTUAL_SHA256_VALUE  origin.js" | sha256sum -c -
         env:
-          EXPECTED_SHA256: "<替换为实际文件的 SHA256 校验和>"
+          EXPECTED_SHA256: "ACTUAL_SHA256_VALUE" # 替换为实际校验和
 
       - name: 混淆 BPB worker.js
         continue-on-error: true
@@ -62,10 +62,10 @@ jobs:
           fi
 
       - name: 提交更改
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v5.0.1
         with:
           branch: main
-          commit_message: ':arrow_up: 更新 BPB 面板 - ${{ github.run_id }} - ${{ github.event.schedule || 'Manual' }}'
+          commit_message: ':arrow_up: 更新 BPB 面板 - ${{ github.run_id }} - Manual'
           commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
           push_options: '--set-upstream'
           skip_dirty_check: false
@@ -75,4 +75,5 @@ jobs:
         uses: ravsamhq/notify-slack-action@v2
         with:
           status: ${{ job.status }}
+          notify_when: 'success,failure'
           token: ${{ secrets.SLACK_WEBHOOK_URL }}
